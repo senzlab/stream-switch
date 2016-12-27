@@ -3,10 +3,10 @@ package com.score.streamswitch.actors
 import java.io.{PrintWriter, StringWriter}
 import java.net.InetSocketAddress
 
-import com.score.streamswitch.actors.StreamHandlerActor.Start
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import akka.io.{IO, Udp}
+import com.score.streamswitch.actors.StreamHandlerActor.Start
 import com.score.streamswitch.config.AppConfig
 import com.score.streamswitch.protocols.{Ref, Senz, SenzMsg, SenzType}
 import com.score.streamswitch.utils.SenzParser
@@ -24,7 +24,7 @@ class StreamListenerActor extends Actor with AppConfig {
 
   def logger = LoggerFactory.getLogger(this.getClass)
 
-  IO(Udp) ! Udp.Bind(self, new InetSocketAddress(7373))
+  IO(Udp) ! Udp.Bind(self, new InetSocketAddress(switchPort))
 
   override def preStart() = {
     logger.info("[_________START ACTOR__________] " + context.self.path)
@@ -39,7 +39,7 @@ class StreamListenerActor extends Actor with AppConfig {
       logger.error("Exception caught, [STOP ACTOR] " + e)
       logFailure(e)
 
-      // stop failed com.score.streamswitch.actors here
+      // stop failed actors here
       Stop
   }
 

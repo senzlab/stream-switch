@@ -5,7 +5,7 @@ import java.net.InetSocketAddress
 import akka.actor.{Actor, ActorRef, Props}
 import akka.io.Udp
 import akka.util.ByteString
-import com.score.streamswitch.actors.StreamHandlerActor.{Start, Stop, StreamRef}
+import com.score.streamswitch.actors.StreamHandlerActor.{Start, StartStream, Stop}
 import com.score.streamswitch.protocols._
 import org.slf4j.LoggerFactory
 
@@ -14,7 +14,7 @@ object StreamHandlerActor {
 
   case class Start(name: String, remote: InetSocketAddress)
 
-  case class StreamRef(toRef: Ref)
+  case class StartStream(toRef: Ref)
 
   case class Stop(name: String)
 
@@ -49,14 +49,19 @@ class StreamHandlerActor(socket: ActorRef) extends Actor {
       StreamListenerActor.refs.put(name, ref)
 
       logger.info(s"Handler started with name $name remote(${remote.getAddress}, ${remote.getPort})")
-    case StreamRef(toRef) =>
+    case StartStream(toRef) =>
       val peer = s"${remote.getHostName}:${remote.getPort}"
-      StreamListenerActor.streamRefs.put(peer, StreamRef(toRef))
+      //val peer = s"${remote.getHostName}"
+      StreamListenerActor.streamRefs.put(remote, toRef)
 
       logger.info(s"Stream created with peer: $peer")
     case Stop(n) =>
       // remove from store
       StreamListenerActor.refs.remove(n)
+
+      val peer = s"${remote.getHostName}:${remote.getPort}"
+      //val peer = s"${remote.getHostName}"
+      StreamListenerActor.streamRefs.remove(remote)
 
       logger.info(s"handler stopped with name $name")
     case Msg(data) =>

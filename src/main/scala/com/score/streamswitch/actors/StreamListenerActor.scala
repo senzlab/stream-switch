@@ -6,7 +6,7 @@ import java.net.InetSocketAddress
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import akka.io.{IO, Udp}
-import com.score.streamswitch.actors.StreamHandlerActor.{Start, StreamRef}
+import com.score.streamswitch.actors.StreamHandlerActor.{Start, StartStream}
 import com.score.streamswitch.config.AppConfig
 import com.score.streamswitch.protocols._
 import com.score.streamswitch.utils.SenzParser
@@ -16,7 +16,7 @@ import scala.util.{Success, Try}
 
 object StreamListenerActor {
   val refs = scala.collection.mutable.LinkedHashMap[String, Ref]()
-  val streamRefs = scala.collection.mutable.LinkedHashMap[String, StreamRef]()
+  val streamRefs = scala.collection.mutable.LinkedHashMap[InetSocketAddress, Ref]()
 
   def props(): Props = Props(classOf[StreamListenerActor])
 }
@@ -80,10 +80,10 @@ class StreamListenerActor extends Actor with AppConfig {
               StreamListenerActor.refs.get(to) match {
                 case Some(toRef) =>
                   // fromRef(handler) to create stream with to
-                  handler ! StreamRef(toRef)
+                  handler ! StartStream(toRef)
 
                   // toRef to create stream with from(handler)
-                  toRef.actorRef ! StreamRef(Ref(handler))
+                  toRef.actorRef ! StartStream(Ref(handler))
                 case None =>
                   // do nothing
                   logger.info(s"Still no to $to connected")
@@ -99,8 +99,9 @@ class StreamListenerActor extends Actor with AppConfig {
           logger.error(s"Unsupported msg $msg")
 
           // forward message
-          val peer = s"${remote.getHostName}:${remote.getPort}"
-          StreamListenerActor.streamRefs(peer).toRef.actorRef ! Msg(msg)
+          //val peer = s"${remote.getHostName}:${remote.getPort}"
+          //val peer = s"${remote.getHostName}"
+          StreamListenerActor.streamRefs(remote).actorRef ! Msg(msg)
       }
     case Udp.Unbind =>
       socket ! Udp.Unbind

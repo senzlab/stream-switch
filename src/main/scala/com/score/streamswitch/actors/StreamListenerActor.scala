@@ -6,7 +6,7 @@ import java.net.InetSocketAddress
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import akka.io.{IO, Udp}
-import com.score.streamswitch.actors.StreamHandlerActor.{Start, StartStream}
+import com.score.streamswitch.actors.StreamHandlerActor.{Init, StartStream, StopStream}
 import com.score.streamswitch.config.AppConfig
 import com.score.streamswitch.protocols._
 import com.score.streamswitch.utils.SenzParser
@@ -56,7 +56,7 @@ class StreamListenerActor extends Actor with AppConfig {
     case Udp.Received(data, remote) =>
       val msg = data.decodeString("UTF-8")
       logger.debug(s"Received data $msg")
-      logger.debug(s"Received from address ${remote.getAddress} port ${remote.getPort}")
+      logger.debug(s"Received from remote: ${remote.getAddress}, ${remote.getPort}")
 
       // parse data and obtain senz
       val senz = Try {
@@ -71,7 +71,7 @@ class StreamListenerActor extends Actor with AppConfig {
             case "ON" =>
               // init new handler
               val handler = context.actorOf(StreamHandlerActor.props(socket))
-              handler ! Start(s, remote)
+              handler ! Init(s, remote)
 
               // to receiver
               val to = attr("#TO")
@@ -89,18 +89,16 @@ class StreamListenerActor extends Actor with AppConfig {
                   logger.info(s"Still no to $to connected")
               }
             case "OFF" =>
-              // TODO remove from to from refs
-              // TODO remove streams
+              // stop stream
+              StreamListenerActor.streamRefs(remote).actorRef ! StopStream
             case e =>
               // not support
               logger.debug(s"Unsupported STREAM $e")
           }
         case _ =>
-          logger.error(s"Unsupported msg $msg")
+          logger.info(s"Msg received $msg")
 
           // forward message
-          //val peer = s"${remote.getHostName}:${remote.getPort}"
-          //val peer = s"${remote.getHostName}"
           StreamListenerActor.streamRefs(remote).actorRef ! Msg(msg)
       }
     case Udp.Unbind =>

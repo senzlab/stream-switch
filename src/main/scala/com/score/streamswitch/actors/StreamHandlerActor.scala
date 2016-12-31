@@ -5,18 +5,18 @@ import java.net.InetSocketAddress
 import akka.actor.{Actor, ActorRef, Props}
 import akka.io.Udp
 import akka.util.ByteString
-import com.score.streamswitch.actors.StreamHandlerActor.{Start, StartStream, Stop}
+import com.score.streamswitch.actors.StreamHandlerActor.{Init, StartStream, StopStream}
 import com.score.streamswitch.protocols._
 import org.slf4j.LoggerFactory
 
 
 object StreamHandlerActor {
 
-  case class Start(name: String, remote: InetSocketAddress)
+  case class Init(name: String, remote: InetSocketAddress)
 
   case class StartStream(toRef: Ref)
 
-  case class Stop(name: String)
+  case class StopStream()
 
   def props(socket: ActorRef): Props = Props(classOf[StreamHandlerActor], socket)
 
@@ -39,7 +39,7 @@ class StreamHandlerActor(socket: ActorRef) extends Actor {
   }
 
   override def receive = {
-    case Start(n, r) =>
+    case Init(n, r) =>
       // initialize name and remote
       name = n
       remote = r
@@ -48,22 +48,17 @@ class StreamHandlerActor(socket: ActorRef) extends Actor {
       val ref = Ref(self)
       StreamListenerActor.refs.put(name, ref)
 
-      logger.info(s"Handler started with name $name remote(${remote.getAddress}, ${remote.getPort})")
+      logger.info(s"Init Handler with name $name remote(${remote.getAddress}, ${remote.getPort})")
     case StartStream(toRef) =>
-      val peer = s"${remote.getHostName}:${remote.getPort}"
-      //val peer = s"${remote.getHostName}"
       StreamListenerActor.streamRefs.put(remote, toRef)
 
-      logger.info(s"Stream created with peer: $peer")
-    case Stop(n) =>
+      logger.info(s"Stream started with remote: ${remote.getAddress}, ${remote.getPort}")
+    case StopStream =>
       // remove from store
-      StreamListenerActor.refs.remove(n)
-
-      val peer = s"${remote.getHostName}:${remote.getPort}"
-      //val peer = s"${remote.getHostName}"
+      StreamListenerActor.refs.remove(name)
       StreamListenerActor.streamRefs.remove(remote)
 
-      logger.info(s"handler stopped with name $name")
+      logger.info(s"Stream stopped with remote: ${remote.getAddress}, ${remote.getPort}")
     case Msg(data) =>
       logger.debug(s"Send data $data to $name")
       socket ! Udp.Send(ByteString(data), remote)

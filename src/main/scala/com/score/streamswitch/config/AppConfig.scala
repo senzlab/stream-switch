@@ -16,7 +16,7 @@ trait AppConfig {
   // switch config
   lazy val switchMode = Try(config.getString("switch.mode")).getOrElse("DEV")
   lazy val switchName = Try(config.getString("switch.name")).getOrElse("streamswitch")
-  lazy val switchPort = Try(config.getInt("switch.port")).getOrElse(7171)
+  lazy val switchPort = Try(config.getInt("switch.port")).getOrElse(9090)
 
   // keys config
   lazy val keysDir = Try(config.getString("keys.dir")).getOrElse(".keys")

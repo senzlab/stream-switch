@@ -6,14 +6,17 @@ import java.net.InetSocketAddress
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import akka.io.{IO, Udp}
-import com.score.streamswitch.actors.StreamHandlerActor.Start
+import com.score.streamswitch.actors.StreamHandlerActor.{Start, StreamRef}
 import com.score.streamswitch.config.AppConfig
-import com.score.streamswitch.protocols.{Ref, Senz, SenzMsg, SenzType}
+import com.score.streamswitch.protocols._
 import com.score.streamswitch.utils.SenzParser
 import org.slf4j.LoggerFactory
 
+import scala.util.{Success, Try}
+
 object StreamListenerActor {
-  val actorRefs = scala.collection.mutable.LinkedHashMap[String, Ref]()
+  val refs = scala.collection.mutable.LinkedHashMap[String, Ref]()
+  val streamRefs = scala.collection.mutable.LinkedHashMap[String, StreamRef]()
 
   def props(): Props = Props(classOf[StreamListenerActor])
 }
@@ -45,7 +48,7 @@ class StreamListenerActor extends Actor with AppConfig {
 
   override def receive = {
     case Udp.Bound(local) =>
-      logger.debug(s"Bound socket ")
+      logger.info(s"Bound socket ")
       context.become(ready(sender()))
   }
 
@@ -56,27 +59,48 @@ class StreamListenerActor extends Actor with AppConfig {
       logger.debug(s"Received from address ${remote.getAddress} port ${remote.getPort}")
 
       // parse data and obtain senz
-      val senz = SenzParser.parseSenz(msg)
-
-      // on init
+      val senz = Try {
+        SenzParser.parseSenz(msg)
+      }
       senz match {
-        case Senz(SenzType.DATA, s, `switchName`, attr, _) =>
+        case Success(Senz(SenzType.DATA, s, `switchName`, attr, _)) =>
           // TODO verify signature
 
           // create new actor and put to store
-          attr.get("#STREAM") match {
-            case Some("ON") =>
+          attr("#STREAM") match {
+            case "ON" =>
               // init new handler
               val handler = context.actorOf(StreamHandlerActor.props(socket))
               handler ! Start(s, remote)
+
+              // to receiver
+              val to = attr("#TO")
+
+              // create streams
+              StreamListenerActor.refs.get(to) match {
+                case Some(toRef) =>
+                  // fromRef(handler) to create stream with to
+                  handler ! StreamRef(toRef)
+
+                  // toRef to create stream with from(handler)
+                  toRef.actorRef ! StreamRef(Ref(handler))
+                case None =>
+                  // do nothing
+                  logger.info(s"Still no to $to connected")
+              }
+            case "OFF" =>
+              // TODO remove from to from refs
+              // TODO remove streams
             case e =>
               // not support
               logger.debug(s"Unsupported STREAM $e")
           }
-        case Senz(SenzType.STREAM, s, _, _, _) =>
-          // there should be an actor, if not its a failure
-          // forward message to actor
-          StreamListenerActor.actorRefs(s).actorRef ! SenzMsg(senz, msg)
+        case _ =>
+          logger.error(s"Unsupported msg $msg")
+
+          // forward message
+          val peer = s"${remote.getHostName}:${remote.getPort}"
+          StreamListenerActor.streamRefs(peer).toRef.actorRef ! Msg(msg)
       }
     case Udp.Unbind =>
       socket ! Udp.Unbind

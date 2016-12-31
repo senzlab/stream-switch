@@ -38,8 +38,8 @@ VOLUME ["/app/logs"]
 # .keys volume
 VOLUME ["/app/.keys"]
 
-# Service run on 7171 port
-EXPOSE 7171
+# Service run on 9090 port
+EXPOSE 9090
 
 # command
 ENTRYPOINT [ "java", "-jar", "/app/switch.jar" ]

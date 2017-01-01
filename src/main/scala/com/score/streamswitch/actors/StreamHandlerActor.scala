@@ -58,6 +58,9 @@ class StreamHandlerActor(socket: ActorRef) extends Actor {
       StreamListenerActor.refs.remove(name)
       StreamListenerActor.streamRefs.remove(remote)
 
+      // stop
+      context.stop(self)
+
       logger.info(s"Stream stopped with remote: ${remote.getAddress}, ${remote.getPort}")
     case Msg(data) =>
       logger.debug(s"Send data $data to $name")

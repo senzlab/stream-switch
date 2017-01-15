@@ -9,7 +9,7 @@ import akka.io.{IO, Udp}
 import com.score.streamswitch.actors.StreamHandlerActor.{Init, StartStream, StopStream}
 import com.score.streamswitch.config.AppConfig
 import com.score.streamswitch.protocols._
-import com.score.streamswitch.utils.SenzParser
+import com.score.streamswitch.utils.{SenzParser, SenzUtils}
 import org.slf4j.LoggerFactory
 
 import scala.util.{Success, Try}
@@ -49,7 +49,13 @@ class StreamListenerActor extends Actor with AppConfig {
   override def receive = {
     case Udp.Bound(local) =>
       logger.info(s"Bound socket ")
-      context.become(ready(sender()))
+
+      // feature toggle
+      if (SenzUtils.enableFeature("ENABLE_SENZ_PARSING")) {
+        context.become(readyWithSenzParsing(sender()))
+      } else {
+        context.become(ready(sender()))
+      }
   }
 
   def ready(socket: ActorRef): Receive = {
@@ -90,16 +96,56 @@ class StreamListenerActor extends Actor with AppConfig {
               }
             case "OFF" =>
               // stop stream
-              StreamListenerActor.streamRefs(remote).actorRef ! StopStream
+              Try {
+                StreamListenerActor.streamRefs(remote).actorRef ! StopStream
+              }
             case e =>
               // not support
               logger.debug(s"Unsupported STREAM $e")
           }
         case _ =>
-          logger.info(s"Msg received $msg")
+          logger.debug(s"Msg received $msg")
 
           // forward message
-          StreamListenerActor.streamRefs(remote).actorRef ! Msg(msg)
+          Try {
+            StreamListenerActor.streamRefs(remote).actorRef ! Msg(msg)
+          }
+      }
+    case Udp.Unbind =>
+      socket ! Udp.Unbind
+    case Udp.Unbound =>
+      context.stop(self)
+  }
+
+  def readyWithSenzParsing(socket: ActorRef): Receive = {
+    case Udp.Received(data, remote) =>
+      val msg = data.decodeString("UTF-8")
+      logger.debug(s"Received data $msg")
+      logger.debug(s"Received from remote: ${remote.getAddress}, ${remote.getPort}")
+
+      SenzParser.parse(msg) match {
+        case Success(stream) =>
+          // forward to sender and receiver
+          Try {
+            StreamListenerActor.refs(stream.receiver).actorRef ! Msg(stream.data)
+          }
+        case _ =>
+          // match for DATA #STREAM ON ...
+          SenzParser.parseSenz(msg) match {
+            case Senz(SenzType.DATA, s, `switchName`, attr, _) =>
+              // create new actor and put to store
+              attr("#STREAM") match {
+                case "ON" =>
+                  val handler = context.actorOf(StreamHandlerActor.props(socket))
+                  handler ! Init(s, remote)
+                case "OFF" =>
+                  Try {
+                    StreamListenerActor.refs(s).actorRef ! StopStream
+                  }
+              }
+            case e =>
+              logger.error(s"unsupported msg $e")
+          }
       }
     case Udp.Unbind =>
       socket ! Udp.Unbind

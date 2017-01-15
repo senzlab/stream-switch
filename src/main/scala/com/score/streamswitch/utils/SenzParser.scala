@@ -1,10 +1,9 @@
 package com.score.streamswitch.utils
 
-import com.score.streamswitch.protocols.{Senz, SenzType}
+import com.score.streamswitch.protocols.{Senz, SenzStrem, SenzType}
 
-/**
-  * Created by eranga on 7/23/16.
-  */
+import scala.util.Try
+
 object SenzParser {
 
   def parseSenz(senzMsg: String) = {
@@ -75,12 +74,12 @@ object SenzParser {
     s"${senz.senzType} ${attr.trim} @${senz.receiver} ^${senz.sender} ${senz.signature}"
   }
 
+  def parse(senz: String) = {
+    Try {
+      val Array(a, b, c) = senz.trim.split(" ")
+      SenzStrem(a.trim, b.substring(1).trim, c.substring(1).trim)
+    }
+  }
+
 }
 
-//object Main extends App {
-//  val s = SenzParser.parseSenz("DATA #uid 701199546 #msg dhhd #time 1475851199 @lala ^hell MULQZ1jk9LUQ6/t72xeMeH40MLrE5TR9vAiBPnCa2tJMPRKbcT5AXfly9eR4Kaj1V93JdFLDz8be4rx0V91wUJxvSRT6FHWV6kk2tVlR90YYfWjwOeVr8aqDsLpRoHvwNJPIp+HU3/08tXXhghXFY0IvXrvV4viq+9mxkm6/IL0=")
-//  println(s.attributes)
-//  //println(SenzParser.compose(s))
-//  //shareStore.share(Array("eranga", "her"), "sdfs", "wer")
-//  //shareStore.isShared("at", "sdf", "sdf")
-//}

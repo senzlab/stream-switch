@@ -24,6 +24,7 @@ ENV SWITCH_MODE DEV
 # set service variables
 ENV MONGO_HOST dev.localhost
 ENV MONGO_PORT 27017
+ENV ENABLE_SENZ_PARSING true
 
 # working directory
 WORKDIR /app

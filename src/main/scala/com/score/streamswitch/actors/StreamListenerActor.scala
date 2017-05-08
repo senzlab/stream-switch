@@ -132,7 +132,7 @@ class StreamListenerActor extends Actor with AppConfig {
         case _ =>
           // match for DATA #STREAM ON ...
           SenzParser.parseSenz(msg) match {
-            case Senz(SenzType.DATA, s, `switchName`, attr, _) =>
+            case Success(Senz(SenzType.DATA, s, `switchName`, attr, _)) =>
               // create new actor and put to store
               attr("#STREAM") match {
                 case "ON" =>

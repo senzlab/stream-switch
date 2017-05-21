@@ -51,7 +51,7 @@ class StreamListenerActor extends Actor with AppConfig {
       logger.info(s"Bound socket ")
 
       // feature toggle
-      if (SenzUtils.enableFeature("ENABLE_SENZ_PARSING")) {
+      if (SenzUtils.isEnable("FEATURE_TOGGLE_SENZ_PARSING")) {
         context.become(readyWithSenzParsing(sender()))
       } else {
         context.become(ready(sender()))

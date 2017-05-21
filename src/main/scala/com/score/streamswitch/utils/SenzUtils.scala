@@ -10,12 +10,12 @@ object SenzUtils {
   }
 
   /**
-    * Check weather the schema feature enabled
-    * Flag set via platform recipe
+    * Check weather given feature toggle enabled
+    * toggle value set via Env variable
     *
     * @return feature enabled or not
     */
-  def enableFeature(feature: String): Boolean = {
+  def isEnable(feature: String): Boolean = {
     sys.env.getOrElse(feature, "false").toBoolean
   }
 }

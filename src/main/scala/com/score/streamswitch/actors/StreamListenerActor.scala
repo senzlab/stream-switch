@@ -65,10 +65,7 @@ class StreamListenerActor extends Actor with AppConfig {
       logger.debug(s"Received from remote: ${remote.getAddress}, ${remote.getPort}")
 
       // parse data and obtain senz
-      val senz = Try {
-        SenzParser.parseSenz(msg)
-      }
-      senz match {
+      SenzParser.parseSenz(msg) match {
         case Success(Senz(SenzType.DATA, s, `switchName`, attr, _)) =>
           // TODO verify signature
 

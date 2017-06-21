@@ -13,7 +13,7 @@ RUN apt-get update -y
 RUN echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | debconf-set-selections
 RUN apt-get install -y oracle-java8-installer
 RUN rm -rf /var/lib/apt/lists/*
-RUN rm -rf /var/cache/oracle-jdk7-installer
+RUN rm -rf /var/cache/oracle-jdk8-installer
 
 # set JAVA_HOME
 ENV JAVA_HOME /usr/lib/jvm/java-8-oracle
@@ -24,7 +24,6 @@ ENV SWITCH_MODE DEV
 # set service variables
 ENV MONGO_HOST dev.localhost
 ENV MONGO_PORT 27017
-ENV FEATURE_TOGGLE_SENZ_PARSING true
 
 # working directory
 WORKDIR /app

@@ -65,7 +65,7 @@ class StreamListenerActor extends Actor with AppConfig {
           Try {
             // forward receiver
             val clientRef = clientRefs(stream.receiver)
-            clientRef.ref ! Udp.Send(ByteString(data), clientRef.remote)
+            clientRef.ref ! Udp.Send(ByteString(msg), clientRef.remote)
           }
         case _ =>
           // match for stream on/off

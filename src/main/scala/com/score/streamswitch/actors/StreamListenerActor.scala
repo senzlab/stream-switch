@@ -58,14 +58,14 @@ class StreamListenerActor extends Actor with AppConfig {
   def ready(socket: ActorRef): Receive = {
     case Udp.Received(data, remote) =>
       val msg = data.decodeString("UTF-8")
-      logger.debug(s"Received data $msg from ${remote.getAddress}, to ${remote.getPort}")
+      logger.debug(s"Received data $msg from ${remote.getAddress}:${remote.getPort}")
 
       SenzParser.parse(msg) match {
         case Success(stream) =>
           Try {
             // forward receiver
             val clientRef = clientRefs(stream.receiver)
-            clientRef.ref ! Udp.Send(ByteString(msg), clientRef.remote)
+            clientRef.ref ! Udp.Send(ByteString(stream.data), clientRef.remote)
           }
         case _ =>
           // match for stream on/off

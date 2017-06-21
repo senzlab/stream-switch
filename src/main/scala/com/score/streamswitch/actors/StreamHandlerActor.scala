@@ -46,17 +46,17 @@ class StreamHandlerActor(socket: ActorRef) extends Actor {
 
       // create ref with handler and put it to ref store
       val ref = Ref(self)
-      StreamListenerActor.refs.put(name, ref)
+      //StreamListenerActor.refs.put(name, ref)
 
       logger.info(s"Init Handler with name $name remote(${remote.getAddress}, ${remote.getPort})")
     case StartStream(toRef) =>
-      StreamListenerActor.streamRefs.put(remote, toRef)
+      //StreamListenerActor.streamRefs.put(remote, toRef)
 
       logger.info(s"Stream started with remote: ${remote.getAddress}, ${remote.getPort}")
     case StopStream =>
       // remove from store
-      StreamListenerActor.refs.remove(name)
-      StreamListenerActor.streamRefs.remove(remote)
+      //StreamListenerActor.refs.remove(name)
+      //StreamListenerActor.streamRefs.remove(remote)
 
       // stop
       context.stop(self)

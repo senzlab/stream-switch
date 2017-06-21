@@ -1,28 +1,30 @@
 package com.score.streamswitch.actors
 
-import java.io.{PrintWriter, StringWriter}
 import java.net.InetSocketAddress
 
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import akka.io.{IO, Udp}
-import com.score.streamswitch.actors.StreamHandlerActor.{Init, StopStream}
+import akka.util.ByteString
 import com.score.streamswitch.config.AppConfig
 import com.score.streamswitch.protocols._
-import com.score.streamswitch.utils.SenzParser
+import com.score.streamswitch.utils.{LogUtil, SenzParser}
 import org.slf4j.LoggerFactory
 
 import scala.util.{Success, Try}
 
 object StreamListenerActor {
-  val refs = scala.collection.mutable.LinkedHashMap[String, Ref]()
-  val streamRefs = scala.collection.mutable.LinkedHashMap[InetSocketAddress, Ref]()
+
+  case class ClientRef(remote: InetSocketAddress, ref: ActorRef)
+
+  val clientRefs = scala.collection.mutable.LinkedHashMap[String, ClientRef]()
 
   def props(): Props = Props(classOf[StreamListenerActor])
 }
 
 class StreamListenerActor extends Actor with AppConfig {
 
+  import StreamListenerActor._
   import context.system
 
   def logger = LoggerFactory.getLogger(this.getClass)
@@ -40,7 +42,7 @@ class StreamListenerActor extends Actor with AppConfig {
   override def supervisorStrategy = OneForOneStrategy() {
     case e: Exception =>
       logger.error("Exception caught, [STOP ACTOR] " + e)
-      logFailure(e)
+      LogUtil.logFailure(e)
 
       // stop failed actors here
       Stop
@@ -60,23 +62,24 @@ class StreamListenerActor extends Actor with AppConfig {
 
       SenzParser.parse(msg) match {
         case Success(stream) =>
-          // forward to sender and receiver
           Try {
-            StreamListenerActor.refs(stream.receiver).actorRef ! Msg(stream.data)
+            // forward receiver
+            val clientRef = clientRefs(stream.receiver)
+            clientRef.ref ! Udp.Send(ByteString(data), clientRef.remote)
           }
         case _ =>
-          // match for DATA #STREAM ON ...
+          // match for stream on/off
+          // DATA #STREAM ON
+          // DATA #STREAM OFF
           SenzParser.parseSenz(msg) match {
             case Success(Senz(SenzType.DATA, s, `switchName`, attr, _)) =>
-              // create new actor and put to store
               attr("#STREAM") match {
                 case "ON" =>
-                  val handler = context.actorOf(StreamHandlerActor.props(socket))
-                  handler ! Init(s, remote)
+                  // put to store
+                  clientRefs.put(s, ClientRef(remote, socket))
                 case "OFF" =>
-                  Try {
-                    StreamListenerActor.refs(s).actorRef ! StopStream
-                  }
+                  // remove from store
+                  clientRefs.remove(s)
               }
             case e =>
               logger.error(s"unsupported msg $e")
@@ -88,11 +91,6 @@ class StreamListenerActor extends Actor with AppConfig {
       context.stop(self)
   }
 
-  private def logFailure(throwable: Throwable) = {
-    val writer = new StringWriter
-    throwable.printStackTrace(new PrintWriter(writer))
-    logger.error(writer.toString)
-  }
 }
 
 

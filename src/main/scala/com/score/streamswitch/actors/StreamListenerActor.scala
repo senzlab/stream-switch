@@ -5,19 +5,19 @@ import java.net.InetSocketAddress
 import akka.actor.SupervisorStrategy.Stop
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import akka.io.{IO, Udp}
-import akka.util.ByteString
 import com.score.streamswitch.config.AppConfig
 import com.score.streamswitch.protocols._
 import com.score.streamswitch.utils.{LogUtil, SenzParser}
 import org.slf4j.LoggerFactory
 
-import scala.util.{Success, Try}
+import scala.util.Success
 
 object StreamListenerActor {
 
-  case class ClientRef(remote: InetSocketAddress, ref: ActorRef)
+  case class ClientRef(remote: InetSocketAddress, actorRef: ActorRef)
 
-  val clientRefs = scala.collection.mutable.LinkedHashMap[String, ClientRef]()
+  val nameRefs = scala.collection.mutable.LinkedHashMap[String, ClientRef]()
+  val portRefs = scala.collection.mutable.LinkedHashMap[Integer, ClientRef]()
 
   def props(): Props = Props(classOf[StreamListenerActor])
 }
@@ -60,30 +60,42 @@ class StreamListenerActor extends Actor with AppConfig {
       val msg = data.decodeString("UTF-8")
       logger.debug(s"Received data $msg from ${remote.getAddress}:${remote.getPort}")
 
-      SenzParser.parse(msg) match {
-        case Success(stream) =>
-          Try {
-            // forward receiver
-            val clientRef = clientRefs(stream.receiver)
-            clientRef.ref ! Udp.Send(ByteString(stream.data), clientRef.remote)
-          }
-        case _ =>
-          // match for stream on/off
-          // DATA #STREAM ON
-          // DATA #STREAM OFF
-          SenzParser.parseSenz(msg) match {
-            case Success(Senz(SenzType.DATA, s, `switchName`, attr, _)) =>
-              attr("#STREAM") match {
-                case "ON" =>
-                  // put to store
-                  clientRefs.put(s, ClientRef(remote, socket))
-                case "OFF" =>
-                  // remove from store
-                  clientRefs.remove(s)
-              }
-            case e =>
-              logger.error(s"unsupported msg $e")
-          }
+      if (msg.startsWith("DATA")) {
+        // this should be DATA #STREAM on #TO eranga SIG
+        // match for stream on/off
+        SenzParser.parseSenz(msg) match {
+          case Success(Senz(SenzType.DATA, from, `switchName`, attr, _)) =>
+            attr("#STREAM") match {
+              // DATA #STREAM ON
+              case "ON" =>
+                val to = attr("#TO")
+
+                nameRefs.get(to) match {
+                  case Some(ref) =>
+                    // have 'to' ref
+                    // put portRefs
+                    portRefs.put(remote.getPort, ref)
+                    portRefs.put(ref.remote.getPort, ClientRef(remote, socket))
+                  case None =>
+                    // no 'to' ref yet
+                    // just put nameRef
+                    nameRefs.put(from, ClientRef(remote, socket))
+                }
+              case "OFF" =>
+                // DATA #STREAM OFF
+                // remove from portRefs, nameRefs
+                portRefs.remove(remote.getPort)
+                nameRefs.remove(from)
+            }
+          case e =>
+            logger.error(s"unsupported msg $e")
+        }
+      } else {
+        // this should be base64 encoded audio payload
+        // directly send them to receiver
+        // receiver identifies via port
+        val ref = portRefs(remote.getPort)
+        ref.actorRef ! msg
       }
     case Udp.Unbind =>
       socket ! Udp.Unbind

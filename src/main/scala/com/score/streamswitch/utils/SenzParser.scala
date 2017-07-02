@@ -1,6 +1,6 @@
 package com.score.streamswitch.utils
 
-import com.score.streamswitch.protocols.{Senz, SenzStrem, SenzType}
+import com.score.streamswitch.protocols.{Senz, SenzType}
 
 import scala.util.Try
 
@@ -10,33 +10,17 @@ object SenzParser {
     Try {
       val tokens = senzMsg.trim.split(" ")
 
-      val senzType = getSenzType(tokens)
-      val signature = getSignature(tokens.drop(1))
-      val sender = getSender(tokens.drop(1).dropRight(1)).toLowerCase
-      val receiver = getReceiver(tokens.drop(1).dropRight(2)).toLowerCase
-      val attr = getAttributes(tokens.drop(1).dropRight(3))
+      val senzType = SenzType.withName(tokens.head.trim)
+      val signature = Some(tokens.last.trim)
+      val sender = tokens.find(_.startsWith("^")).get.trim.substring(1)
+      val receiver = tokens.find(_.startsWith("@")).get.trim.substring(1)
+      val attr = getAttr(tokens.drop(1).dropRight(3))
 
       Senz(senzType, sender, receiver, attr, signature)
     }
   }
 
-  private def getSenzType(tokes: Array[String]) = {
-    SenzType.withName(tokes.head.trim)
-  }
-
-  private def getSignature(tokens: Array[String]) = {
-    Some(tokens.last.trim)
-  }
-
-  private def getSender(tokens: Array[String]) = {
-    tokens.find(_.startsWith("^")).get.trim.substring(1)
-  }
-
-  private def getReceiver(tokens: Array[String]) = {
-    tokens.find(_.startsWith("@")).get.trim.substring(1)
-  }
-
-  private def getAttributes(tokens: Array[String], attr: Map[String, String] = Map[String, String]()): Map[String, String] = {
+  private def getAttr(tokens: Array[String], attr: Map[String, String] = Map[String, String]()): Map[String, String] = {
     tokens match {
       case Array() =>
         // empty array
@@ -48,15 +32,15 @@ object SenzParser {
         // have at least two elements
         if (tokens(0).startsWith("$")) {
           // $key 5.23
-          getAttributes(tokens.drop(2), attr + (tokens(0) -> tokens(1)))
+          getAttr(tokens.drop(2), attr + (tokens(0) -> tokens(1)))
         } else if (tokens(0).startsWith("#")) {
           if (tokens(1).startsWith("#") || tokens(1).startsWith("$")) {
             // #lat $key 23.23
             // #lat #lon
-            getAttributes(tokens.drop(1), attr + (tokens(0) -> ""))
+            getAttr(tokens.drop(1), attr + (tokens(0) -> ""))
           } else {
             // #lat 3.342
-            getAttributes(tokens.drop(2), attr + (tokens(0) -> tokens(1)))
+            getAttr(tokens.drop(2), attr + (tokens(0) -> tokens(1)))
           }
         } else {
           attr
@@ -74,13 +58,6 @@ object SenzParser {
     }
 
     s"${senz.senzType} ${attr.trim} @${senz.receiver} ^${senz.sender} ${senz.signature}"
-  }
-
-  def parse(senz: String) = {
-    Try {
-      val Array(a, b, c) = senz.trim.split(" ")
-      SenzStrem(a.trim, b.substring(1).trim, c.substring(1).trim)
-    }
   }
 
 }

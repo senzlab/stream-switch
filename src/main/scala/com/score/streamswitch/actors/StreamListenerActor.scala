@@ -2,7 +2,7 @@ package com.score.streamswitch.actors
 
 import java.net.InetSocketAddress
 
-import akka.actor.SupervisorStrategy.Stop
+import akka.actor.SupervisorStrategy.{Resume, Stop}
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import akka.io.{IO, Udp}
 import akka.util.ByteString
@@ -19,7 +19,6 @@ object StreamListenerActor {
 
   val sendRefs = scala.collection.mutable.LinkedHashMap[String, SocketRef]()
   val recvRefs = scala.collection.mutable.LinkedHashMap[String, SocketRef]()
-
   val socketRefs = scala.collection.mutable.LinkedHashMap[Integer, SocketRef]()
 
   def props(): Props = Props(classOf[StreamListenerActor])
@@ -48,7 +47,7 @@ class StreamListenerActor extends Actor with AppConfig {
       LogUtil.logFailure(e)
 
       // stop failed actors here
-      Stop
+      Resume
   }
 
   override def receive = {
@@ -88,12 +87,13 @@ class StreamListenerActor extends Actor with AppConfig {
                 // remove refs
                 sendRefs.remove(from)
                 recvRefs.remove(from)
+              case e =>
+                logger.debug(s"Unrecognized stream $e")
             }
           case e =>
             logger.error(s"unsupported msg $e")
         }
       } else {
-        logger.debug(s"forward message --- ")
         // this should be base64 encoded audio payload
         // directly send them to receiver
         // receiver identifies via port

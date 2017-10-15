@@ -2,7 +2,7 @@ package com.score.streamswitch.actors
 
 import java.net.InetSocketAddress
 
-import akka.actor.SupervisorStrategy.{Resume, Stop}
+import akka.actor.SupervisorStrategy.Resume
 import akka.actor.{Actor, ActorRef, OneForOneStrategy, Props}
 import akka.io.{IO, Udp}
 import akka.util.ByteString
@@ -33,14 +33,6 @@ class StreamListenerActor extends Actor with AppConfig {
 
   IO(Udp) ! Udp.Bind(self, new InetSocketAddress(switchPort))
 
-  override def preStart() = {
-    logger.info("[_________START ACTOR__________] " + context.self.path)
-  }
-
-  override def postStop() = {
-    logger.info("[_________STOP ACTOR__________] " + context.self.path)
-  }
-
   override def supervisorStrategy = OneForOneStrategy() {
     case e: Exception =>
       logger.error("Exception caught, [STOP ACTOR] " + e)
@@ -68,16 +60,16 @@ class StreamListenerActor extends Actor with AppConfig {
         // DATA #STREAM N #TO eranga SIG
         SenzParser.parseSenz(msg) match {
           case Success(Senz(SenzType.DATA, from, `switchName`, attr, _)) =>
-            attr("#STREAM") match {
-              case "O" =>
+            attr.get("#STREAM") match {
+              case Some("O") =>
                 // DATA #STREAM O
                 // send ref
                 put(from, attr("#TO"), SocketRef(remote, actorRef), o = true)
-              case "N" =>
+              case Some("N") =>
                 // recv ref
                 // DATA #STREAM N
                 put(from, attr("#TO"), SocketRef(remote, actorRef), o = false)
-              case "OFF" =>
+              case Some("OFF") =>
                 logger.debug(s"Stream off")
 
                 // DATA #STREAM OFF
